@@ -1,0 +1,409 @@
+#!/bin/bash
+
+set -e
+
+HELP="Usage:
+scan2pdf [OPTIONS]
+
+This tool scans pages and converts them to PDF files. It automatically
+tries to improve text readability by post-processing and to recognize
+the scanned text using tessercat OCR.
+
+it was written for private use having my Fujitsu ScanSnap S510 device in
+mind.
+
+The following steps are performed:
+
+ 1. scanning (scanimage)
+ 2. deskwing, contrast corrections (convert)
+ 3. page detection and further post-processing (unpaper)
+ 4. optionally skipping blank pages (convert)
+ 6. loseless tiff image compression (convert)
+ 5. text recogniation (tessercat)
+ 7. PDF creation (tessercat or img2pdf)
+ 8. writing PDF metadata (pdftk)
+ 9. previewing (xdg-open)
+
+By default the script will ask you for keywords. The final PDF file is
+named after the current date and the keywords separated by spaces,
+e.g. '2018-12-01_bill_tax_fujitsu_scansnap_s510.pdf'.
+
+I took inspiration from Fred Weinhaus (textcleaner) and Florian Knodt
+(adlerweb).
+
+If you are looking for a graphical user interface the gscan2pdf
+application is worth a try, see http://gscan2pdf.sourceforge.net/
+It basically uses the same toolchain if you add convert as a custom
+command.
+
+General Options:
+ -v, --verbose		Show additional info
+ -h, --help		Show this help message
+
+Scaning Options:
+ -c, --color		Colored scan (default is grayscale)
+ -d, --duplex		Duplex scan if supported by your scanner
+ -s, --scanner SCANNER	Specify the scanner. Run 'scanimage -L' to get a list
+			of supported scanners. Not required if only one is
+			available
+
+Post-Processing Options:
+ --no-cleanup		Keep temporary files
+ -l, --lang LANG	The languages that should be used for text
+			recogniation. Run 'tesseract --list-langs' to get a
+			list of supported languges
+ --no-ocr		Skip text recogniation
+ --rotate DEGREE	Rotate the page by the given degree
+ --size SIZE		The size of the page: a5, a4, a3, letter, legal.
+			All size names can also be applied in rotated
+			landscape orientation, use a4-landscape,
+			letter-landscape etc.
+ --skip-blank		Detect and skip empty pages
+ --layout single|double Layout of the scanned pages per sheet
+
+PDF File Options:
+ -a, --author NAME	Specify the author
+ -t, --title NAME	Specify the subject
+
+CONFIGURATION
+
+Scan2pdf optionally sources the file ~/.scan2pdfrc. You can set
+configuration options there. The file has to contain valid bash syntax.
+Alternatively you can set the following options as environment
+variables before executing scan2pdf e.g. 'export VERBOSE=1'.
+
+General Options:
+
+VERBOSE			If set show additional information
+CREATOR			The name of the creator of the pdf file.
+			Defaults to 'YOURNAME (scan2pdf)'
+
+Scanning Options:
+
+SCANMODE		Can be 'color', 'lineart' or 'gray'. Defaults
+			to 'gray'
+SCANNER			Specify the scanner that should be used
+RESOLUTION		The resolution (dpi) of the scan. Defaults to 300
+SOURCE			The source of your scanner e.g. 'ADF Duplex' if
+			you always want to perform duplex scans and your
+			scanner supports it
+SCANIMAGE_OPTIONS	Extra options for the scanimage command
+SIZE 			The size of the page: a5, a4, a3, letter, legal.
+			All size names can also be applied in rotated
+			landscape orientation, use a4-landscape,
+			letter-landscape etc.
+
+
+Post-Processing Options:
+
+BLANK_TRESHOLD		Treshold for detecting blank pages. Default value if
+			enabled is 100. An higher treshold value requires less
+			pixels to declare a page as blank
+NO_CLEANUP		Don't cleanup temporary files
+NO_OCR			Sip text recogination
+NO_KEYWORDS		Don't ask for keywords. The keywords are stored
+			in the filename and pdf metadata
+NO_PREVIEW		Don't preview the final pdf
+PDF_VIEWER		Alternative pdf viewer. Defaults to 'xdg-open'
+UNPAPER_OPTIONS 	Extra options for the unpaper command. E.g.
+			'--layout double --skip-noisefilter'. See
+			'unpaper --help' for more information.
+TESSERACT_OPTIONS	Extra options for the tesseract command. See
+			'tesseract --help' for more information.
+CONVERT_DESKEW_TRESHOLD	The treshold for the 'convert -deskew' command.
+			The default value is 40%
+CONVERT_CURVE_LEVEL	The levels for 'convert -level' command.
+			Defaults to 21%,73%. You can use the curve tool
+			of gimp to adapt the values to your scanner
+"
+
+DEPENDENCIES="convert img2pdf parallel pdftk scanimage tesseract unpaper"
+
+# Default values
+RESOLUTION=300
+SCANMODE="gray"
+CREATOR="$(getent passwd $USER | cut -d ":" -f 5 | cut -d "," -f 1)"
+PDF_VIEWER="xdg-open"
+CONVERT_DESKEW_TRESHOLD="40%"
+CONVERT_CURVE_LEVEL="21%,73%"
+BLANK_TRESHOLD="100"
+
+_SCANIMAGE_OPTIONS=()
+
+# Source from config file
+if [[ -e ~/.scan2pdfrc ]]; then
+	. ~/.scan2pdfrc
+fi
+
+# Parse options
+OPTIONS="a:cdghl:s:t:v"
+OPTIONS_LONG="author:,color,duplex,help,language:,layout:,no-cleanup,no-ocr,rotate:,scanner:,size:,title:,verbose"
+TEMP=`getopt -o ${OPTIONS} --long ${OPTIONS_LONG} -n 'scan2pdf' -- "$@"`
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+eval set -- "$TEMP"
+
+while true ; do
+	case "$1" in
+		-a|--author)
+			AUTHOR="$2"
+			shift 2
+			;;
+		-h|--help)
+			printf %s "${HELP}"
+			exit 0
+			;;
+		-c|--color)
+			SCANMODE="color"
+			shift
+			;;
+		-d|--duplex)
+			SOURCE="ADF Duplex"
+			shift
+			;;
+		-l|--language)
+			LANGUAGE="$2"
+			shift 2
+			;;
+		--layout)
+			LAYOUT="$2"
+			shift 2
+			;;
+		--no-cleanup)
+			NO_CLEANUP=1
+			shift
+			;;
+		--no-ocr)
+			NO_OCR=1
+			shift
+			;;
+		--rotate)
+			ROTATE="$2"
+			shift 2
+			;;
+		-s|--scanner)
+			SCANNER="$2"
+			shift 2
+			;;
+		--size)
+			SIZE="$2"
+			shift 2
+			;;
+		-t|--title)
+			TITLE="$2"
+			shift 2
+			;;
+		--skip-blank)
+			SKIP_BLANK=1
+			shift
+			;;
+		-v|--verbose)
+			set -x
+			VERBOSE=1
+			UNPAPER_OPTIONS="${UNPAPER_OPTIONS} -v"
+			shift
+			;;
+		--) shift ; break ;;
+		*) echo "Internal error!" ; exit 1 ;;
+	esac
+done
+
+function info {
+	echo -e "\e[97m\e[42m${1}\e[0m"
+}
+
+function error {
+	echo -e "\e[31m${1}\e[0m"
+}
+
+function debug {
+	if [[ ! -z ${VERBOSE} ]]; then
+		echo -e "${1}"
+	fi
+}
+
+function is-installed {
+	if ! foobar_loc="$(type -p $1)" || [[ -z $foobar_loc ]]; then
+		return 1
+	fi
+	return 0
+}
+
+# Check dependencies
+for dep in ${DEPENDENCIES}; do
+	if ! is-installed "${dep}"; then
+		if is-installed "command-not-found"; then
+			error "$(command-not-found ${dep})"
+		else
+			error "The programme ${dep} is not installed"
+		fi
+		exit 1
+	fi
+done
+
+# Info stored in the final PDF document
+INFO_DATA="InfoBegin
+InfoKey: Creator
+InfoValue: ${CREATOR}
+InfoBegin
+InfoKey: Producer
+InfoValue: scan2pdf"
+if [[ ! -z $AUTHOR ]]; then
+	INFO_DATA="$INFO_DATA
+	InfoBegin
+	InfoKey: Author
+	InfoValue: ${AUTHOR}"
+fi
+if [[ ! -z $AUTHOR ]]; then
+	INFO_DATA="$INFO_DATA
+	InfoBegin
+	InfoKey: Title
+	InfoValue: ${TITLE}"
+fi
+
+TMPDIR=$(mktemp --suffix scan2pdf --directory)
+if [[ ! -z $VERBOSE ]]; then
+	echo "Using temporary dir ${TMPDIR}"
+fi
+
+function finish {
+	EXIT_VALUE=$?
+	if [[ ${EXIT_VALUE} == 0 ]]; then
+		info "DONE"
+	else
+		error "FAILED"
+	fi
+	if [[ -z ${NO_CLEANUP} ]]; then
+		debug "Cleaning up temporary files..."
+		if ! [[ ${TMPDIR} =~ ^/tmp/ ]]; then
+			error "Strange temporary directory: ${TMPDIR}"
+			exit 1
+		fi
+		rm -rf ${TMPDIR}
+	else
+		info "Keeping temporary files: ${TMPDIR}"
+	fi
+	exit ${EXIT_VALUE}
+}
+trap finish EXIT
+
+info "Scanning (scanimage)..."
+_SCANIMAGE_CMD=(scanimage \
+	--format=pnm --progress \
+	--resolution="${RESOLUTION}" \
+	--mode="${SCANMODE}" \
+	--batch=${TMPDIR}/scan-%02d.pnm \
+	${SCANIMAGE_OPTIONS})
+if [[ ! -z ${SCANNER} ]]; then
+	_SCANIMAGE_CMD=("${SCANIMAGE_CMD[@]}" --device-name "${SCANNER}")
+fi
+if [[ ! -z ${SOURCE} ]]; then
+	_SCANIMAGE_CMD=("${SCANIMAGE_CMD[@]}" --source "${SOURCE}")
+fi
+# Use an array here to allow quotes and spaces in the above options
+"${_SCANIMAGE_CMD[@]}"
+#cp scan-*.pnm ${TMPDIR}
+
+if [[ ! -z ${ROTATE} ]]; then
+	_CONVERT_OPTIONS="-rotate ${ROTATE}"
+fi
+info "Deskewing, noise removal and contrast correction (convert)..."
+#TODO: think about using '-contrast-stretch 0' instead of normalize
+#TODO: Think about '-white-threshold 99.9% -trim +repage'
+for filename in $(find ${TMPDIR} -iname "scan*pnm" | sort); do
+	convert ${filename} \
+		-density ${RESOLUTION} \
+		-deskew ${CONVERT_DESKEW_TRESHOLD} \
+		-enhance \
+		-normalize \
+		-level ${CONVERT_CURVE_LEVEL} \
+		-sharpen 0x1 \
+		${_CONVERT_OPTIONS} \
+		${filename%.*}_deskew.pnm
+done
+
+info "Page detection (unpaper)..."
+if [[ ! -z ${LAYOUT} ]]; then
+	UNPAPER_OPTIONS="${UNPAPER_OPTIONS} --layout ${LAYOUT}"
+fi
+if [[ ! -z ${SIZE} ]]; then
+	UNPAPER_OPTIONS="${UNPAPER_OPTIONS} --size ${SIZE}"
+fi
+# Use parallel since unpaper doesn't support threading
+ls ${TMPDIR}/scan*_deskew.pnm | parallel unpaper \
+	--no-deskew \
+	--no-grayfilter \
+	--dpi ${RESOLUTION} \
+	${UNPAPER_OPTIONS} \
+	{} {.}_unpaper.pnm
+
+if [[ ! -z ${SKIP_BLANK} ]]; then
+	info "Detecting blank pages (convert)..."
+	for img in ${TMPDIR}/scan-*_unpaper.pnm; do
+		# We use a border of one inch to avoid detecting holes
+		# See https://superuser.com/questions/343385/detecting-blank-image-files
+		original_height=$(head -n2 ${img} | tail -n 1 | cut -d " " -f 2)
+		height=$(convert ${img} -resize 50% -shave ${RESOLUTION}x0 -virtual-pixel White \
+			-blur 0x15 -fuzz 15% -trim info: | cut -f 3 -d " " | cut -f 2 -d "x")
+		if (( ($original_height / 2 / ${BLANK_TRESHOLD} ) > $height )); then
+			info "Skipping blank page: $(basename ${img})"
+			mv ${img} ${TMPDIR}/_$(basename ${img})
+		fi
+	done
+fi
+
+info "Converting to tiff (convert)..."
+for filename in $(find ${TMPDIR} -iname "scan*_unpaper.pnm" | sort); do
+	convert ${filename} \
+		-compress zip \
+		-density ${RESOLUTION} \
+		${filename%.*}.tiff
+done
+
+if [[ -z ${NO_OCR} ]]; then
+	info "Running OCR (tesseract)..."
+	if [[ ! -z ${LANGUAGE} ]]; then
+		TESSERACT_OPTIONS="${TESSERACT_OPTIONS} -l ${LANGUAGE}"
+	fi
+	for input in $(find ${TMPDIR} -iname "scan*tiff" | sort); do
+		tesseract ${TESSERACT_OPTIONS} "${input}" "${input}" pdf
+	done
+else
+	info "Converting images to PDF (img2pdf)..."
+	find ${TMPDIR} -iname "scan*tiff" | sort | parallel \
+		img2pdf --auto-orientation -s ${RESOLUTION} --output {.} pdf {}
+fi
+
+info "Merging PDF files (pdftk)..."
+pdftk $(ls ${TMPDIR}/scan*pdf) cat output ${TMPDIR}/merged.pdf
+
+if [[ -z $NO_PREVIEW ]]; then
+	info "Previewing PDF files..."
+	${PDF_VIEWER} ${TMPDIR}/merged.pdf
+	read -r -p "Keep scan? (Y|n)" response
+	response=${response,,}    # tolower
+	if ! [[ $response =~ ^(yes|y|j|ja)?$ ]]; then
+		exit 1
+	fi
+fi
+
+if [[ -z $NO_KEYWORDS ]]; then
+	read -r -p "Please enter the keywords separated by space: " response
+	response=${response,,}    # tolower
+	OUTPUT=`date +%Y-%m-%d`_$(echo $response | sed -e 's/[[:blank:]]/_/g').pdf
+	if [[ ${response} == "" ]]; then
+		response="scan"
+	fi
+
+	INFO_DATA="${INFO_DATA}
+InfoBegin
+InfoKey: Keywords
+InfoValue: $(echo $response | sed -e 's/[[:blank:]]/, /g')"
+	printf %s "${INFO_DATA}" | \
+		pdftk ${TMPDIR}/merged.pdf \
+		update_info_utf8 - \
+		output ${TMPDIR}/final.pdf
+fi
+
+mv ${TMPDIR}/final.pdf $OUTPUT
+
+exit 0
