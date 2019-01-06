@@ -303,21 +303,10 @@ fi
 "${_SCANIMAGE_CMD[@]}"
 #cp scan-*.pnm ${TMPDIR}
 
-if [[ ! -z ${ROTATE} ]]; then
-	_CONVERT_OPTIONS="-rotate ${ROTATE}"
-fi
-info "Deskewing, noise removal and contrast correction (convert)..."
-#TODO: think about using '-contrast-stretch 0' instead of normalize
-#TODO: Think about '-white-threshold 99.9% -trim +repage'
+info "Deskewing (convert)..."
 for filename in $(find ${TMPDIR} -iname "scan*pnm" | sort); do
 	convert ${filename} \
-		-density ${RESOLUTION} \
 		-deskew ${CONVERT_DESKEW_TRESHOLD} \
-		-enhance \
-		-normalize \
-		-level ${CONVERT_CURVE_LEVEL} \
-		-sharpen 0x1 \
-		${_CONVERT_OPTIONS} \
 		${filename%.*}_deskew.pnm
 done
 
@@ -328,6 +317,9 @@ fi
 if [[ ! -z ${SIZE} ]]; then
 	UNPAPER_OPTIONS="${UNPAPER_OPTIONS} --size ${SIZE}"
 fi
+if [[ ! -z ${ROTATE} ]]; then
+	UNPAPER_OPTIONS="${UNPAPER_OPTIONS} --pre-rotate ${ROTATE}"
+fi
 # Use parallel since unpaper doesn't support threading
 ls ${TMPDIR}/scan*_deskew.pnm | parallel unpaper \
 	--no-deskew \
@@ -335,6 +327,20 @@ ls ${TMPDIR}/scan*_deskew.pnm | parallel unpaper \
 	--dpi ${RESOLUTION} \
 	${UNPAPER_OPTIONS} \
 	{} {.}_unpaper.pnm
+
+info "Noise removal and contrast correction (convert)..."
+#TODO: Think about '-white-threshold 99.9% -trim +repage'
+for filename in $(find ${TMPDIR} -iname "scan*_unpaper.pnm" | sort); do
+	convert ${filename} \
+		-density ${RESOLUTION} \
+		-level ${CONVERT_CURVE_LEVEL} \
+		-contrast-stretch 0 \
+		-white-threshold 99.9% -trim +repage \
+		-compress zip \
+		-sharpen 0x1 \
+		${_CONVERT_OPTIONS} \
+		${filename%.*}.tiff
+done
 
 if [[ ! -z ${SKIP_BLANK} ]]; then
 	info "Detecting blank pages (convert)..."
@@ -350,14 +356,6 @@ if [[ ! -z ${SKIP_BLANK} ]]; then
 		fi
 	done
 fi
-
-info "Converting to tiff (convert)..."
-for filename in $(find ${TMPDIR} -iname "scan*_unpaper.pnm" | sort); do
-	convert ${filename} \
-		-compress zip \
-		-density ${RESOLUTION} \
-		${filename%.*}.tiff
-done
 
 if [[ -z ${NO_OCR} ]]; then
 	info "Running OCR (tesseract)..."
