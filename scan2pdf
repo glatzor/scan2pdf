@@ -329,7 +329,6 @@ ls ${TMPDIR}/scan*_deskew.pnm | parallel unpaper \
 	{} {.}_unpaper.pnm
 
 info "Noise removal and contrast correction (convert)..."
-#TODO: Think about '-white-threshold 99.9% -trim +repage'
 for filename in $(find ${TMPDIR} -iname "scan*_unpaper.pnm" | sort); do
 	convert ${filename} \
 		-density ${RESOLUTION} \
