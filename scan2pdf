@@ -294,10 +294,10 @@ _SCANIMAGE_CMD=(scanimage \
 	--batch=${TMPDIR}/scan-%02d.pnm \
 	${SCANIMAGE_OPTIONS})
 if [[ ! -z ${SCANNER} ]]; then
-	_SCANIMAGE_CMD=("${SCANIMAGE_CMD[@]}" --device-name "${SCANNER}")
+	_SCANIMAGE_CMD+=( --device-name "${SCANNER}")
 fi
 if [[ ! -z ${SOURCE} ]]; then
-	_SCANIMAGE_CMD=("${SCANIMAGE_CMD[@]}" --source "${SOURCE}")
+	_SCANIMAGE_CMD+=( --source "${SOURCE}")
 fi
 # Use an array here to allow quotes and spaces in the above options
 "${_SCANIMAGE_CMD[@]}"
