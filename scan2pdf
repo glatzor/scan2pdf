@@ -342,7 +342,6 @@ for filename in $(find ${TMPDIR} -iname "scan*_unpaper.pnm" | sort); do
 		-density ${RESOLUTION} \
 		-level ${CONVERT_CURVE_LEVEL} \
 		-contrast-stretch 0 \
-		-white-threshold 99.9% -trim +repage \
 		-compress zip \
 		-sharpen 0x1 \
 		${_CONVERT_OPTIONS} \
