@@ -64,6 +64,7 @@ Post-Processing Options:
 PDF File Options:
  -a, --author NAME	Specify the author
  -t, --title NAME	Specify the subject
+ --date	DATE		Date of the document defaults to today
 
 CONFIGURATION
 
@@ -115,6 +116,8 @@ CONVERT_DESKEW_TRESHOLD	The treshold for the 'convert -deskew' command.
 CONVERT_CURVE_LEVEL	The levels for 'convert -level' command.
 			Defaults to 21%,73%. You can use the curve tool
 			of gimp to adapt the values to your scanner
+PREFIX			Prepend the given prefix to the filename. Defaults
+			to the date
 "
 
 DEPENDENCIES="convert img2pdf parallel pdftk scanimage tesseract unpaper"
@@ -127,6 +130,7 @@ PDF_VIEWER="xdg-open"
 CONVERT_DESKEW_TRESHOLD="40%"
 CONVERT_CURVE_LEVEL="21%,73%"
 BLANK_TRESHOLD="100"
+PREFIX="$(date +%Y-%m-%d)_"
 
 _SCANIMAGE_OPTIONS=()
 
@@ -137,7 +141,7 @@ fi
 
 # Parse options
 OPTIONS="a:cdghl:s:t:v"
-OPTIONS_LONG="author:,color,duplex,help,language:,layout:,no-cleanup,no-ocr,rotate:,scanner:,size:,title:,verbose"
+OPTIONS_LONG="author:,color,date:,duplex,help,language:,layout:,no-cleanup,no-ocr,rotate:,scanner:,size:,title:,verbose"
 TEMP=`getopt -o ${OPTIONS} --long ${OPTIONS_LONG} -n 'scan2pdf' -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 eval set -- "$TEMP"
@@ -155,6 +159,10 @@ while true ; do
 		-c|--color)
 			SCANMODE="color"
 			shift
+			;;
+		--date)
+			PREFIX="$2_"
+			shift 2
 			;;
 		-d|--duplex)
 			SOURCE="ADF Duplex"
@@ -386,7 +394,7 @@ fi
 if [[ -z $NO_KEYWORDS ]]; then
 	read -r -p "Please enter the keywords separated by space: " response
 	response=${response,,}    # tolower
-	OUTPUT=`date +%Y-%m-%d`_$(echo $response | sed -e 's/[[:blank:]]/_/g').pdf
+	OUTPUT="${PREFIX}$(echo $response | sed -e 's/[[:blank:]]/_/g').pdf"
 	if [[ ${response} == "" ]]; then
 		response="scan"
 	fi
