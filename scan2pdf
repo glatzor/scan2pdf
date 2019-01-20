@@ -65,6 +65,8 @@ PDF File Options:
  -a, --author NAME	Specify the author
  -t, --title NAME	Specify the subject
  --date	DATE		Date of the document defaults to today
+ --dest DIRECTORY	Move the final file to the given destination instead
+			of the current working directory
 
 CONFIGURATION
 
@@ -118,7 +120,17 @@ CONVERT_CURVE_LEVEL	The levels for 'convert -level' command.
 			of gimp to adapt the values to your scanner
 PREFIX			Prepend the given prefix to the filename. Defaults
 			to the date
+DESTINATION		Move the final file to the given destination instead
+			of the current working directory
 "
+
+function info {
+	echo -e "\e[97m\e[42m${1}\e[0m"
+}
+
+function error {
+	echo -e "\e[31m${1}\e[0m"
+}
 
 DEPENDENCIES="convert img2pdf parallel pdftk scanimage tesseract unpaper"
 
@@ -131,6 +143,7 @@ CONVERT_DESKEW_TRESHOLD="40%"
 CONVERT_CURVE_LEVEL="21%,73%"
 BLANK_TRESHOLD="100"
 PREFIX="$(date +%Y-%m-%d)_"
+DESTINATION="."
 
 _SCANIMAGE_OPTIONS=()
 
@@ -141,7 +154,7 @@ fi
 
 # Parse options
 OPTIONS="a:cdghl:s:t:v"
-OPTIONS_LONG="author:,color,date:,duplex,help,language:,layout:,no-cleanup,no-ocr,rotate:,scanner:,size:,title:,verbose"
+OPTIONS_LONG="author:,color,date:,dest:,duplex,help,language:,layout:,no-cleanup,no-ocr,rotate:,scanner:,size:,title:,verbose"
 TEMP=`getopt -o ${OPTIONS} --long ${OPTIONS_LONG} -n 'scan2pdf' -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 eval set -- "$TEMP"
@@ -162,6 +175,14 @@ while true ; do
 			;;
 		--date)
 			PREFIX="$2_"
+			shift 2
+			;;
+		--dest)
+			DESTINATION="$2"
+			if [[ ! -d ${DESTINATION} ]]; then
+				error "Invalid destination directory ${DESTINATION}"
+				exit 1
+			fi
 			shift 2
 			;;
 		-d|--duplex)
@@ -214,14 +235,6 @@ while true ; do
 		*) echo "Internal error!" ; exit 1 ;;
 	esac
 done
-
-function info {
-	echo -e "\e[97m\e[42m${1}\e[0m"
-}
-
-function error {
-	echo -e "\e[31m${1}\e[0m"
-}
 
 function debug {
 	if [[ ! -z ${VERBOSE} ]]; then
@@ -408,6 +421,6 @@ InfoValue: $(echo $response | sed -e 's/[[:blank:]]/, /g')"
 		output ${TMPDIR}/final.pdf
 fi
 
-mv ${TMPDIR}/final.pdf $OUTPUT
+mv ${TMPDIR}/final.pdf ${DESTINATION}/${OUTPUT}
 
 exit 0
