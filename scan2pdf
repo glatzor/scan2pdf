@@ -154,7 +154,7 @@ fi
 
 # Parse options
 OPTIONS="a:cdghl:s:t:v"
-OPTIONS_LONG="author:,color,date:,dest:,duplex,help,language:,layout:,no-cleanup,no-ocr,rotate:,scanner:,size:,title:,verbose"
+OPTIONS_LONG="author:,color,date:,dest:,duplex,help,language:,layout:,no-cleanup,no-ocr,rotate:,scanner:,skip-blank,size:,title:,verbose"
 TEMP=`getopt -o ${OPTIONS} --long ${OPTIONS_LONG} -n 'scan2pdf' -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 eval set -- "$TEMP"
