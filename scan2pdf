@@ -411,7 +411,7 @@ if [[ -z $NO_KEYWORDS ]]; then
 		response="scan"
 	fi
 else
-	OUTPUT="${PREFIX}Scanned"
+	OUTPUT="${PREFIX}Scanned.pdf"
 fi
 INFO_DATA="${INFO_DATA}
 InfoBegin
