@@ -142,7 +142,7 @@ PDF_VIEWER="xdg-open"
 CONVERT_DESKEW_TRESHOLD="40%"
 CONVERT_CURVE_LEVEL="21%,73%"
 BLANK_TRESHOLD="100"
-PREFIX="$(date +%Y-%m-%d)_"
+PREFIX="$(date +%Y-%m-%d:%H:%M:%S)_"
 DESTINATION="."
 
 _SCANIMAGE_OPTIONS=()
@@ -410,8 +410,10 @@ if [[ -z $NO_KEYWORDS ]]; then
 	if [[ ${response} == "" ]]; then
 		response="scan"
 	fi
-
-	INFO_DATA="${INFO_DATA}
+else
+	OUTPUT="${PREFIX}Scanned"
+fi
+INFO_DATA="${INFO_DATA}
 InfoBegin
 InfoKey: Keywords
 InfoValue: $(echo $response | sed -e 's/[[:blank:]]/, /g')"
@@ -419,7 +421,6 @@ InfoValue: $(echo $response | sed -e 's/[[:blank:]]/, /g')"
 		pdftk ${TMPDIR}/merged.pdf \
 		update_info_utf8 - \
 		output ${TMPDIR}/final.pdf
-fi
 
 mv ${TMPDIR}/final.pdf ${DESTINATION}/${OUTPUT}
 
