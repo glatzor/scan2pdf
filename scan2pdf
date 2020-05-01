@@ -387,7 +387,7 @@ if [[ -z ${NO_OCR} ]]; then
 else
 	info "Converting images to PDF (img2pdf)..."
 	find ${TMPDIR} -iname "scan*tiff" | sort | parallel \
-		img2pdf --auto-orientation -s ${RESOLUTION} --output {.}.pdf {}
+		img2pdf --auto-orient -s ${RESOLUTION} --output {.}.pdf {}
 fi
 
 info "Merging PDF files (pdftk)..."
