@@ -415,11 +415,12 @@ if [[ -z $NO_KEYWORDS ]]; then
 InfoBegin
 InfoKey: Keywords
 InfoValue: $(echo $response | sed -e 's/[[:blank:]]/, /g')"
-	printf %s "${INFO_DATA}" | \
-		pdftk ${TMPDIR}/merged.pdf \
-		update_info_utf8 - \
-		output ${TMPDIR}/final.pdf
 fi
+
+printf %s "${INFO_DATA}" | \
+	pdftk ${TMPDIR}/merged.pdf \
+	update_info_utf8 - \
+	output ${TMPDIR}/final.pdf
 
 mv ${TMPDIR}/final.pdf ${DESTINATION}/${OUTPUT}
 
