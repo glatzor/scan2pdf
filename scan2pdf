@@ -46,6 +46,9 @@ Scaning Options:
  -s, --scanner SCANNER	Specify the scanner. Run 'scanimage -L' to get a list
 			of supported scanners. Not required if only one is
 			available
+ -p, --prompt 		will  ask  for  pressing RETURN before scanning a page.
+                        This can be used for scanning multiple pages without an
+                        automatic document feeder.
 
 Post-Processing Options:
  --no-cleanup		Keep temporary files
@@ -153,8 +156,8 @@ if [[ -e ~/.scan2pdfrc ]]; then
 fi
 
 # Parse options
-OPTIONS="a:cdghl:s:t:v"
-OPTIONS_LONG="author:,color,date:,dest:,duplex,help,language:,layout:,no-cleanup,no-ocr,rotate:,scanner:,skip-blank,size:,title:,verbose"
+OPTIONS="a:cdghl:ps:t:v"
+OPTIONS_LONG="author:,color,date:,dest:,duplex,help,language:,layout:,no-cleanup,no-ocr,prompt,rotate:,scanner:,skip-blank,size:,title:,verbose"
 TEMP=`getopt -o ${OPTIONS} --long ${OPTIONS_LONG} -n 'scan2pdf' -- "$@"`
 if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
 eval set -- "$TEMP"
@@ -203,6 +206,10 @@ while true ; do
 			;;
 		--no-ocr)
 			NO_OCR=1
+			shift
+			;;
+		--prompt)
+			BATCH_PROMPT=1
 			shift
 			;;
 		--rotate)
@@ -322,6 +329,9 @@ if [[ ! -z ${SOURCE} ]]; then
 fi
 if [[ ! -z ${VERBOSE} ]]; then
 	_SCANIMAGE_CMD+=( --verbose)
+fi
+if [[ ! -z ${BATCH_PROMPT} ]]; then
+	_SCANIMAGE_CMD+=( --batch-prompt)
 fi
 # Use an array here to allow quotes and spaces in the above options
 "${_SCANIMAGE_CMD[@]}"
