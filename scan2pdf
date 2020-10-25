@@ -320,6 +320,9 @@ fi
 if [[ ! -z ${SOURCE} ]]; then
 	_SCANIMAGE_CMD+=( --source "${SOURCE}")
 fi
+if [[ ! -z ${VERBOSE} ]]; then
+	_SCANIMAGE_CMD+=( --verbose)
+fi
 # Use an array here to allow quotes and spaces in the above options
 "${_SCANIMAGE_CMD[@]}"
 #cp scan-*.pnm ${TMPDIR}
