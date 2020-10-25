@@ -353,11 +353,13 @@ ls ${TMPDIR}/scan*_deskew.pnm | parallel unpaper \
 	{} {.}_unpaper.pnm
 
 info "Noise removal and contrast correction (convert)..."
+if [ ${SCANMODE} != "color" ]; then
+	# Only apply curve level to black and white scans
+	_CONVERT_OPTIONS="${_CONVERT_OPTIONS} -level ${CONVERT_CURVE_LEVEL} -contrast-stretch 0"
+fi
 for filename in $(find ${TMPDIR} -iname "scan*_unpaper.pnm" | sort); do
 	convert ${filename} \
 		-density ${RESOLUTION} \
-		-level ${CONVERT_CURVE_LEVEL} \
-		-contrast-stretch 0 \
 		-compress zip \
 		-sharpen 0x1 \
 		${_CONVERT_OPTIONS} \
